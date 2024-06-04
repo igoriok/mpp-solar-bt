@@ -1,6 +1,7 @@
 package input
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -49,7 +50,7 @@ func (bt *bluetoothInput) Read() (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	data := make(map[string]interface{})
+	data := map[string]interface{}{}
 
 	for key, value := range chars {
 
@@ -59,25 +60,25 @@ func (bt *bluetoothInput) Read() (map[string]interface{}, error) {
 
 		case CHAR_0X2A03:
 
-			data["ac_input_voltage"] = float32(h2l_short(byte2short(value, 0))) / 10
-			data["ac_input_frequency"] = float32(h2l_short(byte2short(value, 2))) / 10
-			data["ac_output_voltage"] = float32(h2l_short(byte2short(value, 4))) / 10
-			data["ac_output_frequency"] = float32(h2l_short(byte2short(value, 6))) / 10
-			data["ac_output_apparent_power"] = h2l_short(byte2short(value, 8))
-			data["ac_output_active_power"] = h2l_short(byte2short(value, 10))
-			data["ac_output_load"] = h2l_short(byte2short(value, 12))
-			data["bus_voltage"] = h2l_short(byte2short(value, 14))
-			data["battery_voltage"] = float32(h2l_short(byte2short(value, 16))) / 100
-			data["battery_charging_current"] = h2l_short(byte2short(value, 18))
+			data["ac_input_voltage"] = float32(toUint16(value, 0)) / 10
+			data["ac_input_frequency"] = float32(toUint16(value, 2)) / 10
+			data["ac_output_voltage"] = float32(toUint16(value, 4)) / 10
+			data["ac_output_frequency"] = float32(toUint16(value, 6)) / 10
+			data["ac_output_apparent_power"] = toUint16(value, 8)
+			data["ac_output_active_power"] = toUint16(value, 10)
+			data["ac_output_load"] = toUint16(value, 12)
+			data["bus_voltage"] = toUint16(value, 14)
+			data["battery_voltage"] = float32(toUint16(value, 16)) / 100
+			data["battery_charging_current"] = toUint16(value, 18)
 
 		case CHAR_0X2A04:
 
-			data["battery_capacity"] = h2l_short(byte2short(value, 0))
-			data["inverter_heat_sink_temperature"] = h2l_short(byte2short(value, 2))
-			data["battery_discharge_current"] = h2l_short(byte2short(value, 4))
+			data["battery_capacity"] = toUint16(value, 0)
+			data["inverter_heat_sink_temperature"] = toUint16(value, 2)
+			data["battery_discharge_current"] = toUint16(value, 4)
 
 			if value[13] == 1 {
-				data["ac_input_power"] = h2l_short(byte2short(value, 14))
+				data["ac_input_power"] = toUint16(value, 14)
 			}
 
 			status := getBitArray(value[6])
@@ -87,14 +88,14 @@ func (bt *bluetoothInput) Read() (map[string]interface{}, error) {
 
 		case CHAR_0X2A05:
 
-			data["nominal_ac_input_voltage"] = float32(h2l_short(byte2short(value, 0))) / 10
-			data["nominal_ac_input_current"] = float32(h2l_short(byte2short(value, 8))) / 10
-			data["rated_battery_voltage"] = float32(h2l_short(byte2short(value, 14))) / 10
-			data["nominal_ac_output_voltage"] = float32(h2l_short(byte2short(value, 4))) / 10
-			data["nominal_ac_output_frequency"] = float32(h2l_short(byte2short(value, 6))) / 10
-			data["nominal_ac_output_current"] = float32(h2l_short(byte2short(value, 8))) / 10
-			data["nominal_ac_output_apparent_power"] = h2l_short(byte2short(value, 10))
-			data["nominal_ac_output_active_power"] = h2l_short(byte2short(value, 12))
+			data["nominal_ac_input_voltage"] = float32(toUint16(value, 0)) / 10
+			data["nominal_ac_input_current"] = float32(toUint16(value, 8)) / 10
+			data["rated_battery_voltage"] = float32(toUint16(value, 14)) / 10
+			data["nominal_ac_output_voltage"] = float32(toUint16(value, 4)) / 10
+			data["nominal_ac_output_frequency"] = float32(toUint16(value, 6)) / 10
+			data["nominal_ac_output_current"] = float32(toUint16(value, 8)) / 10
+			data["nominal_ac_output_apparent_power"] = toUint16(value, 10)
+			data["nominal_ac_output_active_power"] = toUint16(value, 12)
 		}
 	}
 
@@ -261,23 +262,15 @@ func pairDevice(dev *device.Device1) error {
 	return nil
 }
 
-func byte2short(bArr []byte, index int) uint16 {
-	var value uint32 = 0
-	for i := 0; i < index+2; i++ {
-		value += (uint32(bArr[i]) & 255) << (((2 - (i - index)) - 1) * 8)
-	}
-	return uint16(value)
+func toUint16(data []byte, pos int) uint16 {
+	return binary.LittleEndian.Uint16(data[pos : pos+2])
 }
 
-func getBitArray(b byte) []byte {
-	var bArr = make([]byte, 8)
+func getBitArray(b byte) [8]byte {
+	var bits = [8]byte{}
 	for i := 7; i >= 0; i-- {
-		bArr[i] = b & 1
+		bits[i] = b & 1
 		b = b >> 1
 	}
-	return bArr
-}
-
-func h2l_short(s uint16) uint16 {
-	return (((s >> 8) & 255) + (((s & 255) << 8) & ACTION_POINTER_INDEX_MASK))
+	return bits
 }
